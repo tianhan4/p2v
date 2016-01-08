@@ -1,0 +1,544 @@
+%% LyX 2.0.8.1 created this file.  For more info, see http://www.lyx.org/.
+%% Do not edit unless you really know what you are doing.
+\documentclass[english]{article}
+\usepackage[T1]{fontenc}
+\usepackage[latin9]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{times}
+\usepackage{ijcai16}
+\makeatletter
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LyX specific LaTeX commands.
+%% Because html converters don't know tabularnewline
+\providecommand{\tabularnewline}{\\}
+
+\@ifundefined{showcaptionsetup}{}{%
+ \PassOptionsToPackage{caption=false}{subfig}}
+\usepackage{subfig}
+\makeatother
+
+\usepackage{babel}
+\begin{document}
+
+\title{paper2vec : document distributed representation based on citation
+context for scholar recommendation }
+\maketitle
+\begin{abstract}
+Because the easily available of references of research papers and
+the rich information contained in them, various citation analysis
+approaches have been proposed to identify similar documents for scholar
+recommendation. However, most of them are based on co-occurrence of
+items, which means two documents cannot be compared without occurrence items.
+, inspired by distributed representation of words used in natural
+language processing, we propose a novel similarity measurement
+by using distributed representation to represent scholar papers. We use a stochastic method
+named Skip-Gram proposed in a word embedding training toolkit Word2vec
+to train dense paper vectors. The cosine similarity of the normalized
+vectors are used to measure the similarity of documents. In comparison
+to previous approaches based on citation analysis, Paper2vec has achieved
+a significantly better performance on the evaluation of similarity
+measurement. Paper2vec has also suggested the possibility to introduce
+distributed representation in the various aspects of recommendation
+system.
+\end{abstract}
+
+\section{Introduction}
+
+Since 1998, research-paper recommender system have been introduced
+into major academic services (CiteSeer(x), Google Scholar, PubMed
+et al.), scholar social network like ResearchGate and all kinds of
+reference managers (CiteULike, Docear, Mendeley et al.). Because of
+the unavailable of full text of many large scholar datasets and the
+available of references, which suggest the main topic of the document,
+many approaches based on citation analysis were proposed to enhance
+the performance of searching relevant documents\cite{meuschke2015citrec}.
+Most of citation based methods, such as Bibliographic Coupling, Co-citation,
+Amsler\cite{cristo2003link}, regard the number of co-occurrence of
+the citation linkages as the similarity measurement, while considering
+different citation linkage types with different weighting schemes.
+However, the similarity measure can only be calculated when the context
+of two documents share at least one item\cite{meuschke2015citrec}.
+In this paper, we present \textquotedbl{}Paper2vec\textquotedbl{},
+an algorithm inspired from word distributed representation proposed
+in the area of NLP, meaning that a word is represented by a real valued
+vector in $R^{m}$, which have recently demonstrated state-of-the-art
+results across various NLP tasks. 
+
+In our algorithm, every scholar document is represented by a real
+values vector to capture the implicit scholar topics contained in
+the citation linkage set. And the cosine similarity of vectors are
+used as the document similarity measurement to find relevant scholar
+papers. With the continuous representation, we can calculate the similarity
+between any pair of document without the need of intersection of citation
+linkage sets. The paper distributed vectors are trained in a stochastic
+way named Skip-gram, proposed in \cite{Mikolov2013c,mikolov2013distributed}
+as a novel model architecture to train continuous vector representations
+of words and integrated into the toolkit Word2vec%
+\footnote{https://code.google.com/p/word2vec%
+}. We will show how similar our paper vectors and word vectors are,
+and how easy to put its training process into out use. The stochastic
+training way also makes Paper2vec easy for online learning. As far
+as we know, there is no related research based on distributed representation
+for citation based algorithm. \cite{perozzi2014deepwalk} has proposed
+an approach for learning latent representations of vertices in a graph
+based on random walk, which can be transfered to generate paper vectors.
+One of our models is inspired by it. 
+
+The evaluation experiment has always been a challenge in research-papers
+recommender system, relating to the lack of datasets and gold standards\cite{Beel2015,meuschke2015citrec}.
+In this paper we use CITREC, an open evaluation framework for citation-based
+and text-based similarity measures proposed in \cite{meuschke2015citrec}.
+Paper2vec was tested on the data from the PubMed Central Open Access
+Subset collected by CITREC, compared with previous citation-based
+algorithms and text-based algorithms. The similarity score calculated
+by CITREC based on the Medical Subject Headings thesaurus was used
+as gold standard. Our experiments show that Paper2vec performs better
+than other citation-based algorithms, even algorithms using full text
+to get the weights of citation linkage\cite{callahan2010contextual,gipp2009citation}. 
+
+The paper is organized as follows. In Section 2 we review the related
+work of Paper2vec, from both the citation-based similarity measures
+(Section 2.1) and word distributed representation training algorithms
+Skip-gram (Section 2.2). Section 3 describes two possible models of
+Paper2vec in details and the similarity between paper vectors and
+word vectors. Section 4 contains the details of the evaluation experiment,
+and Section 5 draws some conclusions and addresses future aspects
+of our work. 
+
+
+\section{related work}
+
+
+\subsection{Citation-based algorithms}
+
+Many different similarity measures were proposed derived from document
+citation structure. A lot of research have proved that the search
+performance can be enhanced by incorporating citation algorithms into
+IR systems\cite{eto2013evaluations}. Paper2vec is derived directly
+from them. Among them the most widely used three basic methods are
+Co-citation, Bibliographic Coupling and Amsler, invented in the 60s
+and 70s. A detailed description is contained in \cite{cristo2003link}.
+They calculate the intersection of different citation linkage sets.
+While Co-citation regard the frequency two documents are cited together,
+namely \textquotedbl{}co-cited\textquotedbl{}, as the similarity measure,
+Bibliographic Coupling consider the number of documents they share
+in their references. They can be formally defined as:
+
+\begin{equation}
+cocitation(d_{1},d_{2})=\frac{P_{d_{1}}\cap P_{d_{2}}}{\vert P_{d_{1}}\cup P_{d_{2}}\vert}
+\end{equation}
+
+
+\begin{equation}
+bibcoupling(d_{1},d_{2})=\frac{C_{d_{1}}\cap C_{d_{2}}}{\vert C_{d_{1}}\cup C_{d_{2}}\vert}
+\end{equation}
+
+
+$P_{d_{i}}$ in Equation (1) is defined as the papers citing $d_{i}$
+and $C_{d_{i}}$ in Equation (2) means the cited papers of $d_{i}$.
+The more $d_{1}$ and $d_{2}$ are together cited relative to the
+sum of papers citing $d_{1}$ or $d_{2}$, the more related they are
+according to Co-citation measure. For Bibliographic Coupling, a larger
+intersection of references of $d_{1}$ and $d_{2}$ relative to all
+papers cited by $d_{1}$ or $d_{2}$ suggests a more related relation
+between two documents.
+
+To combine the two basic algorithms to get better results, Amsler
+proposed an algorithm considering the intersection of the union of
+two citation linkage sets. The Amsler similarity between papers d1
+and d2 is defined as: 
+
+\begin{equation}
+amsler(d_{1},d_{2})=\frac{(P_{d_{1}}\cup C_{d_{1}})\cap(P_{d_{2}}\cup C_{d_{2}})}{\vert(P_{d_{1}}\cup C_{d_{1}})\cup(P_{d_{2}}\cup C_{d_{2}})\vert}
+\end{equation}
+
+
+Context information of citation were introduced recently into the
+co-citation based similarity measure with different weighting schemes
+to quantify the degree of relevance between co-cited documents. Citation
+Proximity Analysis (CPA)\cite{gipp2009citation}, for instance, takes
+fixed value reflecting the proximity between two citations in the
+full text as the strength of the relevance of two co-cited papers,
+while \cite{callahan2010contextual} use another proximity function
+to get co-citation strength based on document structure. However,
+they have the same problems as the classical methods do, and the need
+of full text of such context-based co-citation methods limits their
+availability in some large datasets such as Web of Science, where
+full text is not supported. 
+
+
+\subsection{Word2vec}
+
+The distributed representation for words were initially applied to
+solve the curse of dimensionality caused in language modeling based
+on discrete representation of words\cite{bengio2003neural}. Under
+the hypothesis that words having similar context are similar, which
+suggests that contextual information nicely approximates word meaning,
+distributional semantic models (DSMs) use continuous short vectors
+to keep track of the context information collected in large corpus,
+namely the word distribution nearby the specific word. \cite{baroni2014don}
+classified DSMs into two types, count models and predict models. While
+count models are the traditional methods to generate distributed vectors
+by transforming the feature vectors with various specific criteria,
+predict models build a probabilistic model based on word vectors,
+which are trained on large corpus to maximize the probability of the
+occurrences of the contexts of observed words. Because the probability
+function is smooth and calculated totally by the distributed word
+vectors instead of discrete word features, the word distributed representation
+obtained by latter methods makes it possible to regard two words similar,
+when the distribution of context word vectors are similar, but having
+no intersection. Evaluation performed in \cite{baroni2014don} shows
+context-predicting models are superior than count-based models on
+several measures. 
+
+Almost existing predict models, Skip-gram uses a simple probability
+function. Skip-gram was proposed in \cite{mikolov2013distributed}
+and improved in \cite{Mikolov2013c}, which tries to predict the context
+of observed words $P(context\vert w)$ across the corpus. The objective
+is to maximize the probability function as follow:
+
+\begin{equation}
+P=\sum_{\substack{i\in corpus\\
+j\in context(i)
+}
+}\log Q_{ij}
+\end{equation}
+
+
+While $Q_{ij}$ means the probability of word $i$ appearing in the
+context of word $j$, namely $P(context\vert w)$, which is defined
+as softmax function in the basic Skip-gram algorithm:
+
+\begin{equation}
+Q_{ij}=\frac{\exp(w_{i}^{T}\widetilde{w_{j}})}{\sum_{k=1}^{V}\exp(w_{i}^{T}\widetilde{w_{k}})}
+\end{equation}
+
+
+The context of word is defined as a window around the word, the window
+size can be parameterized. Because the computation difficulty of the
+full softmax, some efficient approximation methods are proposed to
+accelerate the training process \cite{Mikolov2013c} such as hierarchical
+softmax and negative sampling. The training process is stochastic
+and iterates several times across the large corpus. \cite{NIPS2014_5477}
+proved Skip-gram with negative sampling is implicitly factorizing
+a shifted pointwise mutual information(PMI) transformed word-context
+occurrence matrix. \cite{Mikolov2013c} have also proposed another
+algorithm named CBOW, which is an approximation version of Skip-gram.
+While Skip-gram iterates every pair of the word and one of its context,
+CBOW calculates the average context word vector in the window of the
+current word and use it for stochastic training process, the gradients
+of average context words are distributed uniformly to every context
+words. CBOW has a faster training process because it updates the word
+and all the context words in the window at once. However, we use Skip-gram
+as the training algorithm for its characteristic of pair-wise training,
+which will be explained in detailed in the next section. Both have
+been integrated into the toolkit Word2vec. 
+
+
+\subsection{DeepWalk}
+
+DeepWalk is a learning algorithm to obtain distribution representation
+for vertices in a network, which was used in the original paper for
+relational classification problem. As the paper citation relation
+is similar to a network while papers can be regard as the vertices,
+DeepWalk can be easily introduced to get paper vectors. The core idea
+in DeepWalk is to take random walk pathes from network as sentences,
+while the vertices as words. The built corpus is then dropped to Word2vec
+to generate corresponding distributed representation of vertices.
+\cite{perozzi2014deepwalk} declared a 10\% promotion based on $F_{1}$
+score than state-of-the-art methods in multi-label classification.
+One of the most important model in Paper2vec is based on this work,
+which will be described in detailed in the next section. 
+
+
+\section{paper2vec}
+
+The hypothesis under various citation based similarity measures are
+similar with that under various DSMs: papers having similar ``citation
+link context'' are similar. ``Citation link context'' here means
+the citation linkage set of a document %
+\footnote{The concept ``Citation context'' has been used to describe the text
+surrounding the citation position in full text in previous research.%
+}, the definition of which can be various for different models. So
+it is very easy to transfer the distributed representation method
+to citation based scholar recommender system. We present the algorithm
+Paper2vec, which combine the related works mentioned above to generate
+scholar document vectors, which can then be used to measure similarity
+between papers. You will see that Paper2vec is so simple to implement. 
+
+The scholar dataset used should at least contains following information:
+the documents we want to model, which documents they have cited and
+by which they are cited. This can be done by record the references
+of a paper and construct the identification of them with recorded
+documents. With the prepared dataset we can start. At first, we identify
+every paper with a unique id, which can be the unique key used in
+the document database, or identifier used in scholar databases such
+as DOI or PmId in PubMed. Then we define the citation linkage set
+of documents, which will then be used to build the training data.
+To make it convenient for training, we only consider symmetry citation
+link context in accordance with the context of words in Word2vec,
+which means if document A is in the citation linkage set of document
+B, document B must be in the citation link context of document A. The 
+algorithm is described in Algorithm \ref{alg:algorithm1}.
+
+\begin{algorithm}[htb]
+\caption{Framework of Paper2vec algorithm}
+\label{alg:algorithm1}
+\begin{algorithmic}[1]
+\REQUIRE
+The scholar database of research papers $D$; 
+\ENSURE
+Distributed embeddings of research papers contained in $D$, $W$;
+\STATE
+Extract the citation linkage set $S$ of research papers from $D$;
+\STATE
+Build correspoding corpus $C$ based on the definition
+ of citation linkage set ;
+\STATE
+Train the corpus based on word distributed representation model Skip-gram
+ with specific parameters, get the paper vectors $W$; 
+\RETURN $W$;
+\end{algorithmic}
+\end{algorithm}
+
+We have applied three different definitions of citation linkage set:
+Amsler context, All-citation context and the DeepWalk context.
+
+\begin{figure}[htb]
+\centering{}\includegraphics[scale=0.5]{QQ20151227131723}\caption{\label{fig:Three-definitions-of}An illustration of three definitions
+of citation linkage set. Dots represent documents and links represent
+citation relations. The citation linkage set of current paper contains
+the bold dots, while bolder dots mean larger weights in set. Compared
+to uniform weights used in Amsler context and All-citation context,
+DeepWalk context is larger and adopts a weight scheme based on the
+proximity of graph structure. }
+\end{figure}
+
+The citation linkage set of document A defined by Amsler context is
+described contains the documents A cites and the documents having
+cited A. As it looks like a distributed representation version of
+the Amsler algorithm, so we name it Amsler context. Because the data
+of co-citation papers are available and they are often relevant, the
+All-citation context attempts to utilize this part of information
+by append the co-citation papers of document A into the citation linkage
+set. This method expand the corpus but may skew the distribution of
+the citation link context. We call it All-citation context. It is
+composed by cited paper context, citing paper context and co-citation
+paper context. The third definition is based on the algorithm DeepWalk\cite{perozzi2014deepwalk},
+it's trivial to represent the citation relation of papers as a undirected
+graph, then the random walk path at fixed length $t$ from citation
+relation network can be considered as a sentence, made of nodes representing
+documents, for Word2vec to train. If the corpus is large enough and
+the training window size is defined as $w$, which in fact is equivalent
+to the definition of a larger citation link context, which contains
+all papers less than $w$ steps away from the target paper on the
+graph, while further papers assigned smaller weights. We call it DeepWalk
+context. The essential difference of three contexts is showed in Figure
+\ref{fig:Three-definitions-of} intuitively. Notably, though using
+different way to build corpus, when the window size of DeepWalk context
+is set 1, it's equivalent to Amsler context method. All-citation context
+can also be regard as a kind of DeepWalk context while the window
+size is between 1 and 2.
+
+After define the citation linkage set of a paper, we scan the scholar
+database to construct the training corpus. As has been discussed in
+related work, we use the toolkit Word2vec to train paper vectors.
+From the database we can construct corpus similar with text corpus,
+which can be directly used for training in Word2vec. Word2vec requires
+text corpus as training data, where words are separated by space,
+and words appearing between different paragraphs are not regard as
+in the same context. While CBOW requires that all words in the context
+are around the word, the feature of pair-wise training process of
+Skip-gram make it possible to decompose the sentence into pairs of
+words and their context words into paragraphs or other flexible corpus
+structures. Different definitions of citation link context have different
+ways to build the corresponding corpus. For Amsler context, we can
+construct the corpus by appending every pair of citation relation
+as a paragraph. For All-citation context, we concatenate the current
+paper and the references together as a paragraph with a infinite window
+size, then the pairs between the current paper and one from the corresponding
+cited paper context, citing paper context or co-citation paper context
+will be respectively trained in different paragraphs in corpus. The
+corpus of DeepWalk context can be built directly by randomly walking
+through papers by citation relation. 
+
+\begin{table*}[htb]
+\begin{centering}
+\begin{tabular}{|c|c|c|c|c|}
+\hline 
+definition & building corpus time & context set & weight scheme & window size\tabularnewline
+\hline 
+\hline 
+Amsler & $O(n)$ & small & uniform & 2\tabularnewline
+\hline 
+All-citation & $O(n)$ & medium & uniform & infinite\tabularnewline
+\hline 
+DeepWalk & $O(n*walkers*t)$ & large & proximity based & customized\tabularnewline
+\hline 
+\end{tabular}
+\par\end{centering}
+
+\caption{\label{tab:Comparing-three-variants}Comparing three variants of Paper2vec
+models. The window size of Amsler is 2 because the paragraphs of Amsler
+corpus is consist of pairs of documents.}
+
+\end{table*}
+
+Model based on DeepWalk context will be more informative but not be
+so efficient as the former two models on building corpus because it
+has to access $t$ nodes to obtain a random walk path for every sentence,
+while the others access once. Also, DeepWalk context based model needs
+a corpus containing $n*walkers$ sentences, where $n$ is the number
+of documents and the parameter $walkers$ means the number of random
+walks to start at each node and need to be large enough to fully reflect
+the probability distribution. A comprehensive comparision is demonstrated
+in Table \ref{tab:Comparing-three-variants}.
+
+Skip-gram will use a stochastic learning way to iterate the corpus.
+Because the citation corpus is not as redundant as text corpus, the
+iteration time is often larger than that used in NLP tasks. After
+training, we obtain the paper vectors directly from the output of
+Word2vec, which can be used to measure similarity by calculating the
+cosine similarity of vectors of two documents. 
+
+Many advantages can be derived from the distribution representation.
+First, we can calculate the similarity between any pair of document
+without the need of intersection of citation linkage sets. Second,
+full text is not needed for Paper2vec, which makes it possible to
+be applied into scholar databases where full text is not supported.
+Third, the stochastic learning process and the corpus structure make
+it possible an online learning process. When a new paper is included
+into the database, it can be transformed into training data and learned
+immediately. 
+
+
+\section{experiment}
+
+
+\subsection{Training details}
+
+We conduct the evaluation experiment on CITREC\cite{meuschke2015citrec},
+an open evaluation framework specially for citation based similarity
+measures, which is proposed to solve the challange of the lack of
+suitable test collections and available gold standards, described
+in \cite{Beel2015}. CITREC has collected the data from the PubMed
+Central Open Access Subset and the TREC Genomics collection, and provide
+35 citation-based and text-based similarity measures implementations,
+including all the algorithms mentioned above. Two gold standards are
+implemented in CITREC based on the Medical Subject Headings (Mesh)
+thesaurus and the expert feedback in TREC Genomics collection, respectively
+applied in corresponding collections. Medical Subject Headings are
+a thesaurus of subject descriptors to assign topic descriptors to
+papers in life science for facilitating searching, while the terms
+in it are hierarchical. The similarity function in CITREC based on
+Mesh trys to demonstrate the proximity of the subject descriptors
+of two papers across the concept tree. 
+
+In our experiment, we use the data collected from PubMed Central Open
+Access Subset to construct our training corpus, and the Mesh based
+similarity measures as the baseline. In the database 255339 documents
+and 9379146 references are recorded, among which 4525277 references
+are distinct. To avoid too much noise caused by incomplete information,
+we only construct distributed vectors of papers contained in recorded
+documents, meaning that we limit the available references data to
+the subset of that included in the documents. The same criteria is
+applied on the classical citation based algorithms we chose as compared
+methods, which along with some context-aware citation based methods,
+such as CPA and Contextual Co-citation, are compared with Paper2vec
+models based on three definitions of citation link context mentioned
+above. Vector size of all our models is set 500, the window size of
+DeepWalk context is set 3.
+
+With the calculated similarity scores by various algorithms, we can
+get the rank of the most $K$ similar documents of every document
+in the database. Because classical similarity measure cannot get the
+similarity score for every pair arbitraily, $K$ is not fixed, so
+we conducted experiment under different $K$ to get a comprehensive
+result. Two evaluation approaches are used for our experiment for
+their invariance of $K$: intersection ratio and Kendall's tau rank
+correlation coefficient. While intersection ratio take the average
+ratio of intersection between the top-$K$ documents set ranked according
+to a similarity measure and the baseline to $K$ as the evaluation
+measure, Kendall's tau rank correlation coefficient focuses on the
+similarity of rank of ordered datasets.
+
+\begin{figure*}[htb]
+\begin{center}
+\begin{raggedright}
+\subfloat[\label{fig:intersection}The intersection ratio]{\begin{centering}
+\includegraphics[width=7cm]{QQ20151231203756}\end{centering}
+}
+\end{raggedright}
+\begin{raggedleft}
+\subfloat[\label{fig:kendall}The Kendall's tau coefficient]{\begin{centering}
+\includegraphics[width=7cm]{QQ20151231203734}\end{centering}
+}
+\end{raggedleft}
+\end{center}
+
+\caption{\label{fig:Evaluation-results-based}Evaluation results based on different
+metrics. In Figure \ref{fig:intersection} the measures of Contexual
+Cocitation method and the CPA are almost the same. }
+
+\end{figure*}
+
+\subsection{Results}
+
+The compared result under different $K$ is showed in Figure \ref{fig:Evaluation-results-based}.
+The intersection ratio is on Figure \ref{fig:intersection} and Kendall's
+tau on Figure \ref{fig:kendall}. To clarify the figure, We only demonstrate
+the Amsler algorithm of three classical ones for it\textquoteright{}s
+always better than the other two. There are several variants of CPA
+model and the Contexual Co-citation model, we tried them all and only
+list the best result around them. It can be seen that all our three
+variants of Paper2vec models outperform the classical citation based
+algorithms, and also the state-of-the-art co-citation based methods
+with weighted co-citation relation with the support of full text.
+DeepWalk context performs better than other two models while taking more time to 
+train. For the interaction ratio, co-citation contextual information based
+methods work well for smaller $K$, Amsler context and All-citation
+context then catch up quickly and outperform them when covering more
+documents. All-citation context works better than Amsler context when $K$ is small but 
+the opposite for large $K$, which 
+may owe to the more informative but skewed distribution of citation linkage set mentioned before.
+It should be noticed that the intersection ratio of DeepWalk
+context has greatly exceeded other algorithms. Because the limitation
+of dataset of papers, from the corpus we can estimate that on average
+the size of Amsler context set is only about 5 and the All-citation
+context about 10. So we guess the surprising performance of DeepWalk
+context may not only owe to the rich information implicit in the model,
+but also the poor information for other models. Experiments on a larger
+and more cohensive database may results in a more accurate result.
+
+\section{conclusion \& discussion}
+
+In Paper2vec, we try various methods based on different citation link
+context to obtain document distributed representation, which can be
+used for tasks such as document clustering, relational classification,
+similarity measurement and so on. The similarity measure of any pair
+of documents can be calculated, the full text is not nessesary, and 
+the stochastic training process make it possible to update the new
+papers introduced into the database without training the whole corpus
+again and easy to be parallelized. The advantages and better performance
+of Paper2vec make it a promising co-citaion method combined with text-based
+method for future scholar recommender systems. 
+
+In addition, there are more untapped potential hidden in distributed
+representation. \cite{Mikolov2013c} finds the vector difference of
+distributed representation can suggect the similarity of pair of words.
+For instance, vector(\textquotedblright{}King\textquotedblright{})
+- vector(\textquotedblright{}Man\textquotedblright{}) + vector(\textquotedblright{}Woman\textquotedblright{})
+results in a vector closed to vector(\textquotedbl{}Queen\textquotedbl{}).
+\cite{levy2014linguistic} gave an math explaination of the property.
+If the paper vectors have the same property, which can be used for
+finding papers that having a specific topic relation with the input
+document by simple vector algebraic operation. More reseach are needed
+to verify the hypothesis. 
+
+\bibliographystyle{plain}
+\bibliography{all}
+
+\end{document}
